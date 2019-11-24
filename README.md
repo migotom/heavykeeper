@@ -5,13 +5,13 @@ Native Go implementation of Top-K Heavykeeper algorithm, efficient, high precisi
 Based on work of Junzhi Gong, Tong Yang, Haowei Zhang, and Hao Li: [HeavyKeeper: An Accurate Algorithm
 for Finding Top-k Elephant Flows](https://www.usenix.org/system/files/conference/atc18/atc18-gong.pdf)
 
-# Install
+## Install
 
 ```
 go get github.com/migotom/heavykeeper
 ```
 
-# Usage
+## Usage
 
 Sample usage of heavykeeper:
 
@@ -45,3 +45,7 @@ Sample usage of heavykeeper:
 		fmt.Println(e.Item, e.Count)
 	}
 ```
+
+## Credits
+
+Application was developed by Tomasz Kolaj and is licensed under Apache License Version 2.0. Please reports bugs at https://github.com/migotom/heavykeeper/issues.
