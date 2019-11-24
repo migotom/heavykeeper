@@ -1,4 +1,4 @@
-# Top-K Heavykeeper
+# Top-K Heavykeeper [![Coverage](https://gocover.io/_badge/github.com/migotom/heavykeeper)](https://gocover.io/github.com/migotom/heavykeeper)
 
 Native Go implementation of Top-K Heavykeeper algorithm, efficient, high precision and fast algorithm for finding Top-K elephant flows.
 
@@ -42,8 +42,8 @@ Sample usage of heavykeeper:
 
   // print list Top K values
   for _, e := range heavykeeper.List() {
-		fmt.Println(e.Item, e.Count)
-	}
+    fmt.Println(e.Item, e.Count)
+  }
 ```
 
 ## Credits
