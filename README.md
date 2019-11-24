@@ -13,7 +13,7 @@ go get github.com/migotom/heavykeeper
 
 # Usage
 
-Sample usage of keavykeeper:
+Sample usage of heavykeeper:
 
 ```go
   // keep track on top 25 elephant flows
