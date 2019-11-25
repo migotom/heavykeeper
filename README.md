@@ -16,6 +16,9 @@ go get github.com/migotom/heavykeeper
 Sample usage of heavykeeper:
 
 ```go
+  // run parallel 4 workers
+  workers := 4
+
   // keep track on top 25 elephant flows
   k := uint32(25)
 
@@ -28,7 +31,7 @@ Sample usage of heavykeeper:
   // probability decay
   decay := 0.9
 
-  heavykeeper := heavykeeper.New(k, width, depth, decay)
+  heavykeeper := heavykeeper.New(workers, k, width, depth, decay)
   heavykeeper.Add("some_key_1")
 
   // ... adding more keys ...
@@ -39,6 +42,9 @@ Sample usage of heavykeeper:
   if frequentKey := heavykeeper.Query("some_key_100"); frequentKey {
     fmt.Println("one of top 25 keys")
   }
+
+  // wait until all workers finish jobs
+  heavykeeper.Wait()
 
   // print list Top K values
   for _, e := range heavykeeper.List() {
