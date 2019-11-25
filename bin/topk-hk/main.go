@@ -32,7 +32,7 @@ func main() {
 		}
 	}
 
-	heavykeeper := heavykeeper.New(uint32(*k), uint32(*width), uint32(*depth), *decay)
+	heavykeeper := heavykeeper.New(4, uint32(*k), uint32(*width), uint32(*depth), *decay)
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
@@ -44,6 +44,8 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		log.Fatal("error during scan: ", err)
 	}
+
+	heavykeeper.Wait()
 	for _, e := range heavykeeper.List() {
 		fmt.Println(e.Item, e.Count)
 	}

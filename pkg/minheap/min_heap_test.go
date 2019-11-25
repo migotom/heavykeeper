@@ -57,8 +57,7 @@ func TestFix(t *testing.T) {
 	minheap.Add(Node{Item: "A", Count: 1})
 	minheap.Add(Node{Item: "B", Count: 2})
 
-	minheap.Nodes[0].Count = 10
-	minheap.Fix(0)
+	minheap.Fix(0, 10)
 
 	if minheap.Nodes[0].Count == 10 {
 		t.Errorf("not expected state after min-heap fix operation %v, expected %v", minheap.Nodes[0], 2)

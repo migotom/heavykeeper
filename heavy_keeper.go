@@ -3,6 +3,7 @@ package heavykeeper
 import (
 	"math"
 	"math/rand"
+	"sync"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/migotom/heavykeeper/pkg/minheap"
@@ -13,29 +14,47 @@ type TopK struct {
 	width uint32
 	depth uint32
 	decay float64
+	items chan string
 
-	buckets [][]*bucket
+	buckets [][]bucket
 	minHeap *minheap.Heap
+	wg      *sync.WaitGroup
 }
 
-func New(k, width, depth uint32, decay float64) *TopK {
+func New(workers int, k, width, depth uint32, decay float64) *TopK {
 	// err check...
-	arrays := make([][]*bucket, depth)
+
+	arrays := make([][]bucket, depth)
 	for i := range arrays {
-		arrays[i] = make([]*bucket, width)
-		for j := range arrays[i] {
-			arrays[i][j] = new(bucket)
-		}
+		arrays[i] = make([]bucket, width)
 	}
 
-	return &TopK{
+	topk := TopK{
 		k:       k,
 		width:   width,
 		depth:   depth,
 		decay:   decay,
 		buckets: arrays,
 		minHeap: minheap.NewHeap(k),
+		items:   make(chan string),
+		wg:      new(sync.WaitGroup),
 	}
+
+	for i := 0; i < workers; i++ {
+		topk.wg.Add(1)
+		go func() {
+			defer topk.wg.Done()
+
+			topk.jobAdder()
+		}()
+	}
+
+	return &topk
+}
+
+func (topk *TopK) Wait() {
+	close(topk.items)
+	topk.wg.Wait()
 }
 
 func (topk *TopK) Query(item string) (exist bool) {
@@ -54,68 +73,96 @@ func (topk *TopK) List() []minheap.Node {
 	return topk.minHeap.Sorted()
 }
 
-func (topk *TopK) Add(item string) uint64 {
-	var maxCount uint64
-	var itemHeapIdx int
-	var itemHeapExist, minHeapSearched bool
+func (topk *TopK) Add(item string) {
+	topk.items <- item
+}
 
-	heapMin := topk.minHeap.Min()
-	itemFingerprint := xxhash.Checksum64([]byte(item))
+func (topk *TopK) jobAdder() {
+	for item := range topk.items {
 
-	// compute d hashes
-	for i := uint32(0); i < topk.depth; i++ {
+		itemFingerprint := xxhash.Checksum64([]byte(item))
 
-		bucketNumber := xxhash.Checksum64S([]byte(item), uint64(i)) % uint64(topk.width)
-		bucket := topk.buckets[i][bucketNumber]
+		var maxCount uint64
+		itemHeapIdx, itemHeapExist := topk.minHeap.Find(item)
+		heapMin := topk.minHeap.Min()
 
-		count := &bucket.count
+		// compute d hashes
+		for i := uint32(0); i < topk.depth; i++ {
 
-		if *count == 0 {
-			bucket.fingerprint = itemFingerprint
-			maxCount = max(maxCount, 1)
-			(*count) = 1
+			bucketNumber := xxhash.Checksum64S([]byte(item), uint64(i)) % uint64(topk.width)
 
-		} else if bucket.fingerprint == itemFingerprint {
+			topk.buckets[i][bucketNumber].Lock()
 
-			if !minHeapSearched && (*count) >= heapMin {
-				itemHeapIdx, itemHeapExist = topk.minHeap.Find(item)
-				minHeapSearched = true
-			}
-			if itemHeapExist || (*count) <= heapMin {
-				(*count)++
-				maxCount = max(maxCount, (*count))
-			}
+			fingerprint := topk.buckets[i][bucketNumber].fingerprint
+			count := topk.buckets[i][bucketNumber].count
 
-		} else {
-			decay := math.Pow(topk.decay, float64(*count))
-			if rand.Float64() < decay {
-				(*count)--
-				if (*count) == 0 {
-					(*count) = 1
-					maxCount = max(maxCount, (*count))
-					bucket.fingerprint = itemFingerprint
+			if count == 0 {
+				topk.buckets[i][bucketNumber].fingerprint = itemFingerprint
+				topk.buckets[i][bucketNumber].count = 1
+				maxCount = max(maxCount, 1)
+
+			} else if fingerprint == itemFingerprint {
+				if itemHeapExist || count <= heapMin {
+					topk.buckets[i][bucketNumber].count++
+					maxCount = max(maxCount, topk.buckets[i][bucketNumber].count)
+				}
+
+			} else {
+				decay := math.Pow(topk.decay, float64(count))
+				if rand.Float64() < decay {
+					topk.buckets[i][bucketNumber].count--
+					if topk.buckets[i][bucketNumber].count == 0 {
+						topk.buckets[i][bucketNumber].fingerprint = itemFingerprint
+						topk.buckets[i][bucketNumber].count = 1
+						maxCount = max(maxCount, 1)
+					}
 				}
 			}
+
+			topk.buckets[i][bucketNumber].Unlock()
 		}
+
+		// update heap
+		if itemHeapExist {
+			topk.minHeap.Fix(itemHeapIdx, maxCount)
+		} else {
+			topk.minHeap.Add(minheap.Node{
+				Count: maxCount,
+				Item:  item,
+			})
+		}
+
 	}
 
-	// update heap
-	if itemHeapExist {
-		topk.minHeap.Nodes[itemHeapIdx].Count = maxCount
-		topk.minHeap.Fix(itemHeapIdx)
-	} else {
-		topk.minHeap.Add(minheap.Node{
-			Count: maxCount,
-			Item:  item,
-		})
-	}
-
-	return maxCount
 }
 
 type bucket struct {
 	fingerprint uint64
 	count       uint64
+	sync.Mutex
+}
+
+func (b *bucket) Get() (uint64, uint64) {
+	// b.RLock()
+	// defer b.RUnlock()
+
+	return b.fingerprint, b.count
+}
+
+func (b *bucket) Set(fingerprint, count uint64) {
+	// b.Lock()
+	// defer b.Unlock()
+
+	b.fingerprint = fingerprint
+	b.count = count
+}
+
+func (b *bucket) Inc(val uint64) uint64 {
+	// b.Lock()
+	// defer b.Unlock()
+
+	b.count += val
+	return b.count
 }
 
 func max(x, y uint64) uint64 {
