@@ -1,4 +1,4 @@
-module github.com/migotom/heavykeeper
+module github.com/ngrok-oss/heavykeeper
 
 go 1.13
 
