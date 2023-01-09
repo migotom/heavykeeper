@@ -1,6 +1,7 @@
 package minheap
 
 import (
+	"bytes"
 	"container/heap"
 	"sort"
 	"sync"
@@ -49,12 +50,12 @@ func (h *Heap) Min() uint64 {
 	return h.Nodes[0].Count
 }
 
-func (h *Heap) Find(item string) (int, bool) {
+func (h *Heap) Find(item []byte) (int, bool) {
 	h.RLock()
 	defer h.RUnlock()
 
 	for i := range h.Nodes {
-		if h.Nodes[i].Item == item {
+		if bytes.Equal(h.Nodes[i].Item, item) {
 			return i, true
 		}
 	}

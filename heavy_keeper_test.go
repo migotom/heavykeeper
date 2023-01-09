@@ -2,6 +2,7 @@ package heavykeeper
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -105,7 +106,7 @@ func TestAdd(t *testing.T) {
 				count, _ := heavykeeper.Count(frequencies.keys[i])
 				accuracy = append(accuracy, calculateAccuracy(frequencies.counts[frequencies.keys[i]], count))
 				// item position test
-				if topkList[i].Item != frequencies.keys[i] {
+				if !bytes.Equal(topkList[i].Item, []byte(frequencies.keys[i])) {
 					errors = append(errors, fmt.Errorf("TopK Key mismatch expected idx=%d key=%s count=%d, got key=%s count=%d", i, frequencies.keys[i], frequencies.counts[frequencies.keys[i]], topkList[i].Item, count))
 				}
 				// item counter test

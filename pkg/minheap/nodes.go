@@ -3,7 +3,7 @@ package minheap
 type Nodes []Node
 
 type Node struct {
-	Item  string
+	Item  []byte
 	Count uint64
 }
 
@@ -12,7 +12,7 @@ func (n Nodes) Len() int {
 }
 
 func (n Nodes) Less(i, j int) bool {
-	return (n[i].Count < n[j].Count) || (n[i].Count == n[j].Count && n[i].Item > n[j].Item)
+	return (n[i].Count < n[j].Count) || (n[i].Count == n[j].Count && string(n[i].Item) > string(n[j].Item))
 }
 
 func (n Nodes) Swap(i, j int) {

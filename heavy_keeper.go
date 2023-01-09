@@ -15,7 +15,7 @@ type TopK struct {
 	width uint32
 	depth uint32
 	decay float64
-	items chan string
+	items chan []byte
 
 	seed    int
 	buckets [][]bucket
@@ -38,7 +38,7 @@ func New(workers int, k, width, depth uint32, decay float64, seed int) *TopK {
 		decay:   decay,
 		buckets: arrays,
 		minHeap: minheap.NewHeap(k),
-		items:   make(chan string),
+		items:   make(chan []byte),
 		wg:      new(sync.WaitGroup),
 		seed:    seed,
 	}
@@ -61,29 +61,41 @@ func (topk *TopK) Wait() {
 }
 
 func (topk *TopK) Query(item string) (exist bool) {
+	return topk.QueryBytes([]byte(item))
+}
+
+func (topk *TopK) Count(item string) (uint64, bool) {
+	return topk.CountBytes([]byte(item))
+}
+
+func (topk *TopK) Add(item string) {
+	topk.AddBytes([]byte(item))
+}
+
+func (topk *TopK) QueryBytes(item []byte) (exist bool) {
 	_, exist = topk.minHeap.Find(item)
 	return
 }
 
-func (topk *TopK) Count(item string) (uint64, bool) {
+func (topk *TopK) CountBytes(item []byte) (uint64, bool) {
 	if id, exist := topk.minHeap.Find(item); exist {
 		return topk.minHeap.Nodes[id].Count, true
 	}
 	return 0, false
 }
 
-func (topk *TopK) List() []minheap.Node {
-	return topk.minHeap.Sorted()
+func (topk *TopK) AddBytes(item []byte) {
+	topk.items <- item
 }
 
-func (topk *TopK) Add(item string) {
-	topk.items <- item
+func (topk *TopK) List() []minheap.Node {
+	return topk.minHeap.Sorted()
 }
 
 func (topk *TopK) jobAdder() {
 	for item := range topk.items {
 
-		itemFingerprint := xxhash.Checksum64S([]byte(item), uint64(topk.seed))
+		itemFingerprint := xxhash.Checksum64S(item, uint64(topk.seed))
 
 		var maxCount uint64
 		itemHeapIdx, itemHeapExist := topk.minHeap.Find(item)
