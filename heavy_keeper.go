@@ -109,7 +109,7 @@ func (topk *TopK) jobAdder() {
 
 			bucketNumber := xxhash.Checksum64S(append([]byte(item), bI...), uint64(topk.seed)) % uint64(topk.width)
 
-			topk.buckets[i][bucketNumber].Lock()
+			topk.buckets[i][bucketNumber].mu.Lock()
 
 			fingerprint := topk.buckets[i][bucketNumber].fingerprint
 			count := topk.buckets[i][bucketNumber].count
@@ -137,7 +137,7 @@ func (topk *TopK) jobAdder() {
 				}
 			}
 
-			topk.buckets[i][bucketNumber].Unlock()
+			topk.buckets[i][bucketNumber].mu.Unlock()
 		}
 
 		// update heap
@@ -157,27 +157,27 @@ func (topk *TopK) jobAdder() {
 type bucket struct {
 	fingerprint uint64
 	count       uint64
-	sync.Mutex
+	mu          sync.RWMutex
 }
 
 func (b *bucket) Get() (uint64, uint64) {
-	// b.RLock()
-	// defer b.RUnlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 
 	return b.fingerprint, b.count
 }
 
 func (b *bucket) Set(fingerprint, count uint64) {
-	// b.Lock()
-	// defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	b.fingerprint = fingerprint
 	b.count = count
 }
 
 func (b *bucket) Inc(val uint64) uint64 {
-	// b.Lock()
-	// defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	b.count += val
 	return b.count
