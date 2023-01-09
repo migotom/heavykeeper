@@ -1,6 +1,7 @@
 package heavykeeper
 
 import (
+	"encoding/binary"
 	"math"
 	"math/rand"
 	"sync"
@@ -16,12 +17,13 @@ type TopK struct {
 	decay float64
 	items chan string
 
+	seed    int
 	buckets [][]bucket
 	minHeap *minheap.Heap
 	wg      *sync.WaitGroup
 }
 
-func New(workers int, k, width, depth uint32, decay float64) *TopK {
+func New(workers int, k, width, depth uint32, decay float64, seed int) *TopK {
 	// err check...
 
 	arrays := make([][]bucket, depth)
@@ -38,6 +40,7 @@ func New(workers int, k, width, depth uint32, decay float64) *TopK {
 		minHeap: minheap.NewHeap(k),
 		items:   make(chan string),
 		wg:      new(sync.WaitGroup),
+		seed:    seed,
 	}
 
 	for i := 0; i < workers; i++ {
@@ -80,7 +83,7 @@ func (topk *TopK) Add(item string) {
 func (topk *TopK) jobAdder() {
 	for item := range topk.items {
 
-		itemFingerprint := xxhash.Checksum64([]byte(item))
+		itemFingerprint := xxhash.Checksum64S([]byte(item), uint64(topk.seed))
 
 		var maxCount uint64
 		itemHeapIdx, itemHeapExist := topk.minHeap.Find(item)
@@ -89,7 +92,10 @@ func (topk *TopK) jobAdder() {
 		// compute d hashes
 		for i := uint32(0); i < topk.depth; i++ {
 
-			bucketNumber := xxhash.Checksum64S([]byte(item), uint64(i)) % uint64(topk.width)
+			bI := make([]byte, 4)
+			binary.LittleEndian.PutUint32(bI, uint32(i))
+
+			bucketNumber := xxhash.Checksum64S(append([]byte(item), bI...), uint64(topk.seed)) % uint64(topk.width)
 
 			topk.buckets[i][bucketNumber].Lock()
 
