@@ -1,4 +1,4 @@
-module github.com/ngrok-oss/heavykeeper
+module github.com/migotom/heavykeeper
 
 go 1.19
 
