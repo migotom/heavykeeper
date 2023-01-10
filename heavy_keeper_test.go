@@ -2,11 +2,16 @@ package heavykeeper
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"testing"
+)
+
+const (
+	HashSeed = 123456890
 )
 
 func TestAdd(t *testing.T) {
@@ -15,6 +20,7 @@ func TestAdd(t *testing.T) {
 		width uint32
 		depth uint32
 		decay float64
+		seed  int
 	}
 	cases := []struct {
 		Name                     string
@@ -24,35 +30,35 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			Name:        "uniform stream",
-			Config:      config{2, 64, 6, 0.9},
+			Config:      config{2, 64, 6, 0.9, HashSeed},
 			Items:       []string{"a", "a", "b", "b", "b", "b", "b", "c", "c", "c", "d", "e", "e", "e", "e", "e", "e", "f", "f", "g", "g"},
 			MinAccuracy: 0.5,
 			MaxAccuracy: 1.0,
 		},
 		{
 			Name:        "mixed stream",
-			Config:      config{2, 64, 6, 0.9},
+			Config:      config{2, 64, 6, 0.9, HashSeed},
 			Items:       []string{"a", "d", "f", "a", "z", "b", "c", "b", "d", "d", "c", "d", "b", "e", "e", "f", "f", "x", "f", "y"},
 			MinAccuracy: 0.5,
 			MaxAccuracy: 1.0,
 		},
 		{
 			Name:        "dominated by one value stream",
-			Config:      config{2, 32, 6, 0.9},
+			Config:      config{2, 32, 6, 0.9, HashSeed},
 			Items:       []string{"a", "d", "f", "a", "z", "a", "c", "b", "a", "d", "c", "d", "a", "e", "a", "f", "a", "f", "x", "f", "y", "a"},
 			MinAccuracy: 0.5,
 			MaxAccuracy: 1.0,
 		},
 		{
 			Name:        "dominated by two values streams",
-			Config:      config{2, 64, 6, 0.9},
+			Config:      config{2, 64, 6, 0.9, HashSeed},
 			Items:       []string{"a", "d", "f", "a", "b", "a", "c", "b", "a", "b", "c", "d", "a", "b", "a", "f", "b", "a", "b", "x", "f", "b", "y", "a"},
 			MinAccuracy: 0.5,
 			MaxAccuracy: 1.0,
 		},
 		{
 			Name:   `Tolstoy's "War and Peace" stream`,
-			Config: config{20, 8192, 6, 0.9},
+			Config: config{20, 8192, 6, 0.9, HashSeed},
 			Items: func(t *testing.T) (items []string) {
 				f, err := os.Open("fixtures/war_and_peace.txt")
 				if err != nil {
@@ -76,7 +82,7 @@ func TestAdd(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			// create heavy keeper TopK pseudo-service
-			heavykeeper := New(4, tc.Config.k, tc.Config.width, tc.Config.depth, tc.Config.decay)
+			heavykeeper := New(4, tc.Config.k, tc.Config.width, tc.Config.depth, tc.Config.decay, HashSeed)
 
 			// iterate over stream and build assistant metrics
 			frequencies := frequencies{counts: make(map[string]uint64)}
@@ -100,7 +106,7 @@ func TestAdd(t *testing.T) {
 				count, _ := heavykeeper.Count(frequencies.keys[i])
 				accuracy = append(accuracy, calculateAccuracy(frequencies.counts[frequencies.keys[i]], count))
 				// item position test
-				if topkList[i].Item != frequencies.keys[i] {
+				if !bytes.Equal(topkList[i].Item, []byte(frequencies.keys[i])) {
 					errors = append(errors, fmt.Errorf("TopK Key mismatch expected idx=%d key=%s count=%d, got key=%s count=%d", i, frequencies.keys[i], frequencies.counts[frequencies.keys[i]], topkList[i].Item, count))
 				}
 				// item counter test

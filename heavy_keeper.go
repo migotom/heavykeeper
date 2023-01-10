@@ -1,6 +1,7 @@
 package heavykeeper
 
 import (
+	"encoding/binary"
 	"math"
 	"math/rand"
 	"sync"
@@ -14,14 +15,15 @@ type TopK struct {
 	width uint32
 	depth uint32
 	decay float64
-	items chan string
+	items chan []byte
 
+	seed    int
 	buckets [][]bucket
 	minHeap *minheap.Heap
 	wg      *sync.WaitGroup
 }
 
-func New(workers int, k, width, depth uint32, decay float64) *TopK {
+func New(workers int, k, width, depth uint32, decay float64, seed int) *TopK {
 	// err check...
 
 	arrays := make([][]bucket, depth)
@@ -36,8 +38,9 @@ func New(workers int, k, width, depth uint32, decay float64) *TopK {
 		decay:   decay,
 		buckets: arrays,
 		minHeap: minheap.NewHeap(k),
-		items:   make(chan string),
+		items:   make(chan []byte),
 		wg:      new(sync.WaitGroup),
+		seed:    seed,
 	}
 
 	for i := 0; i < workers; i++ {
@@ -58,29 +61,41 @@ func (topk *TopK) Wait() {
 }
 
 func (topk *TopK) Query(item string) (exist bool) {
+	return topk.QueryBytes([]byte(item))
+}
+
+func (topk *TopK) Count(item string) (uint64, bool) {
+	return topk.CountBytes([]byte(item))
+}
+
+func (topk *TopK) Add(item string) {
+	topk.AddBytes([]byte(item))
+}
+
+func (topk *TopK) QueryBytes(item []byte) (exist bool) {
 	_, exist = topk.minHeap.Find(item)
 	return
 }
 
-func (topk *TopK) Count(item string) (uint64, bool) {
+func (topk *TopK) CountBytes(item []byte) (uint64, bool) {
 	if id, exist := topk.minHeap.Find(item); exist {
 		return topk.minHeap.Nodes[id].Count, true
 	}
 	return 0, false
 }
 
-func (topk *TopK) List() []minheap.Node {
-	return topk.minHeap.Sorted()
+func (topk *TopK) AddBytes(item []byte) {
+	topk.items <- item
 }
 
-func (topk *TopK) Add(item string) {
-	topk.items <- item
+func (topk *TopK) List() []minheap.Node {
+	return topk.minHeap.Sorted()
 }
 
 func (topk *TopK) jobAdder() {
 	for item := range topk.items {
 
-		itemFingerprint := xxhash.Checksum64([]byte(item))
+		itemFingerprint := xxhash.Checksum64S(item, uint64(topk.seed))
 
 		var maxCount uint64
 		itemHeapIdx, itemHeapExist := topk.minHeap.Find(item)
@@ -89,9 +104,12 @@ func (topk *TopK) jobAdder() {
 		// compute d hashes
 		for i := uint32(0); i < topk.depth; i++ {
 
-			bucketNumber := xxhash.Checksum64S([]byte(item), uint64(i)) % uint64(topk.width)
+			bI := make([]byte, 4)
+			binary.LittleEndian.PutUint32(bI, uint32(i))
 
-			topk.buckets[i][bucketNumber].Lock()
+			bucketNumber := xxhash.Checksum64S(append([]byte(item), bI...), uint64(topk.seed)) % uint64(topk.width)
+
+			topk.buckets[i][bucketNumber].mu.Lock()
 
 			fingerprint := topk.buckets[i][bucketNumber].fingerprint
 			count := topk.buckets[i][bucketNumber].count
@@ -119,7 +137,7 @@ func (topk *TopK) jobAdder() {
 				}
 			}
 
-			topk.buckets[i][bucketNumber].Unlock()
+			topk.buckets[i][bucketNumber].mu.Unlock()
 		}
 
 		// update heap
@@ -139,27 +157,27 @@ func (topk *TopK) jobAdder() {
 type bucket struct {
 	fingerprint uint64
 	count       uint64
-	sync.Mutex
+	mu          sync.RWMutex
 }
 
 func (b *bucket) Get() (uint64, uint64) {
-	// b.RLock()
-	// defer b.RUnlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 
 	return b.fingerprint, b.count
 }
 
 func (b *bucket) Set(fingerprint, count uint64) {
-	// b.Lock()
-	// defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	b.fingerprint = fingerprint
 	b.count = count
 }
 
 func (b *bucket) Inc(val uint64) uint64 {
-	// b.Lock()
-	// defer b.Unlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
 	b.count += val
 	return b.count

@@ -18,7 +18,7 @@ func TestNodesLen(t *testing.T) {
 		},
 		{
 			Name:     "Two",
-			Nodes:    Nodes{Node{Item: "foo"}, Node{Item: "bar"}},
+			Nodes:    Nodes{Node{Item: []byte("foo")}, Node{Item: []byte("bar")}},
 			Expected: 2,
 		},
 	}
@@ -40,7 +40,7 @@ func TestNodesLess(t *testing.T) {
 	}{
 		{
 			Name:     "A>B",
-			Nodes:    Nodes{Node{Item: "A"}, Node{Item: "B"}},
+			Nodes:    Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}},
 			I:        0,
 			J:        1,
 			Expected: false,
@@ -78,10 +78,10 @@ func TestNodesSwap(t *testing.T) {
 	}{
 		{
 			Name:     "A<->B",
-			Nodes:    Nodes{Node{Item: "A"}, Node{Item: "B"}},
+			Nodes:    Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}},
 			I:        0,
 			J:        1,
-			Expected: Nodes{Node{Item: "B"}, Node{Item: "A"}},
+			Expected: Nodes{Node{Item: []byte("B")}, Node{Item: []byte("A")}},
 		},
 	}
 	for _, tc := range cases {
@@ -104,20 +104,20 @@ func TestNodesPush(t *testing.T) {
 		{
 			Name:     "add A to empty",
 			Nodes:    Nodes{},
-			Value:    Node{Item: "A"},
-			Expected: Nodes{Node{Item: "A"}},
+			Value:    Node{Item: []byte("A")},
+			Expected: Nodes{Node{Item: []byte("A")}},
 		},
 		{
 			Name:     "add B",
-			Nodes:    Nodes{Node{Item: "A"}},
-			Value:    Node{Item: "B"},
-			Expected: Nodes{Node{Item: "A"}, Node{Item: "B"}},
+			Nodes:    Nodes{Node{Item: []byte("A")}},
+			Value:    Node{Item: []byte("B")},
+			Expected: Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}},
 		},
 		{
 			Name:     "add C",
-			Nodes:    Nodes{Node{Item: "A"}, Node{Item: "B"}},
-			Value:    Node{Item: "C"},
-			Expected: Nodes{Node{Item: "A"}, Node{Item: "B"}, Node{Item: "C"}},
+			Nodes:    Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}},
+			Value:    Node{Item: []byte("C")},
+			Expected: Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}, Node{Item: []byte("C")}},
 		},
 	}
 	for _, tc := range cases {
@@ -139,9 +139,9 @@ func TestNodesPop(t *testing.T) {
 	}{
 		{
 			Name:          "pop from {A,B}",
-			Nodes:         Nodes{Node{Item: "A"}, Node{Item: "B"}},
-			ExpectedNodes: Nodes{Node{Item: "A"}},
-			ExpectedNode:  Node{Item: "B"},
+			Nodes:         Nodes{Node{Item: []byte("A")}, Node{Item: []byte("B")}},
+			ExpectedNodes: Nodes{Node{Item: []byte("A")}},
+			ExpectedNode:  Node{Item: []byte("B")},
 		},
 	}
 	for _, tc := range cases {
