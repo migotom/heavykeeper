@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/migotom/heavykeeper"
 )
@@ -32,7 +34,9 @@ func main() {
 		}
 	}
 
-	heavykeeper := heavykeeper.New(4, uint32(*k), uint32(*width), uint32(*depth), *decay)
+	rand.Seed(time.Now().UnixNano())
+
+	heavykeeper := heavykeeper.New(4, uint32(*k), uint32(*width), uint32(*depth), *decay, rand.Int())
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
